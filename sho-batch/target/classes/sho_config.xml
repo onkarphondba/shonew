@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:aws-context="http://www.springframework.org/schema/cloud/aws/context"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jms="http://www.springframework.org/schema/jms"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		http://www.springframework.org/schema/context 
+		http://www.springframework.org/schema/context/spring-context-4.0.xsd
+		http://www.springframework.org/schema/cloud/aws/context
+		http://www.springframework.org/schema/cloud/spring-cloud-aws-context.xsd
+		http://www.springframework.org/schema/jms 
+        http://www.springframework.org/schema/jms/spring-jms.xsd
+        http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+
+	
+	<context:property-placeholder location="sho_${target_env}.properties" ignore-unresolvable="true" />
+    <import resource="applicationContext.xml" />
+    
+	<bean id="dataSourceNetSuite" name="dataSourceNetSuite"
+		class="com.netsuite.jdbcx.openaccess.OpenAccessDataSource">
+		<property name="user" value="${netsuite.user}" />
+		<property name="password" value="${netsuite.password}" />
+		<property name="serverDataSource" value="${netsuite.serverDataSource}" />
+		<property name="portNumber" value="${netsuite.portNumber}" />
+		<property name="cipherSuites" value="${netsuite.cipherSuites}" />
+		<property name="serverName" value="${netsuite.serverName}" />
+		<property name="customProperties" value="${netsuite.customProperties}" />
+		<property name="encrypted" value="${netsuite.encrypted}" />
+		<property name="connectionRetryCount" value="${netsuite.retrycount}" />
+	</bean>
+	
+	<bean id="dataSourceJE" class="org.apache.commons.dbcp2.BasicDataSource"
+		destroy-method="close">
+		<property name="driverClassName" value="${justenough.driverClassName}" />
+		<property name="url" value="${justenough.urlDB}" />
+		<property name="username" value="${justenough.username}" />
+		<property name="password" value="${justenough.password}" />
+		<property name="testOnBorrow" value="${justenough.testOnBorrow}" />
+		<property name="validationQuery" value="${justenough.validationQuery}" />
+	</bean>
+
+	<bean id="basicAWSCredentials" class="com.amazonaws.auth.BasicAWSCredentials">
+		<constructor-arg index="0" value="${accessKey}" />
+		<constructor-arg index="1" value="${secretKey}" />
+	</bean> 
+	
+	<bean id="basicAWSCredentialsProvider" class="com.sho.renaissance.batch.util.CustomAWSCredentialsProvider">
+		<constructor-arg ref="basicAWSCredentials" />
+	</bean>
+
+	<bean id="connectionFactoryBuilder"
+		class="com.amazon.sqs.javamessaging.SQSConnectionFactory$Builder">
+		<property name="regionName" value="${sho.region}" />
+		<property name="awsCredentialsProvider" ref="basicAWSCredentialsProvider" />
+	</bean>
+
+	<bean id="connectionFactory" class="com.amazon.sqs.javamessaging.SQSConnectionFactory"
+		factory-bean="connectionFactoryBuilder" factory-method="build" />
+
+
+	<bean id="amazonSQSClient" class="com.amazonaws.services.sqs.AmazonSQSClient">
+		<constructor-arg ref="basicAWSCredentialsProvider" />
+	</bean>
+	
+	<bean id="amazonS3Client" class="com.amazonaws.services.s3.AmazonS3Client">
+		<constructor-arg ref="basicAWSCredentials" />
+	</bean>
+	
+	<bean id="netSuiteWebService_sandBox1"  class="com.capgemini.cif.core.domain.NetSuiteWebService">
+	   	<property name="nsUserName" value="${netSuite.webService.sandbox1.userName}"/>
+	   	<property name="nsPassKey" value="${netSuite.webService.sandbox1.password}"/>
+	   	<property name="nsAccountId" value="${netSuite.webService.sandbox1.accountID}"/>
+	   	<property name="nsRoleId" value="${netSuite.webService.sandbox1.roleID}"/>
+	   	<property name="nsApplicationId" value="${netSuite.webService.sandbox1.applicationID}"/>
+	   	<property name="nsConnectionTimeout" value="${netSuite.webService.sandbox1.connectionTimeout}"/>
+	   	<property name="nsRecevieTimeout" value="${netSuite.webService.sandbox1.receiveTimeout}"/>
+	   	<property name="nsEndpointUrl" value="${netSuite.webService.sandbox1.endpointURL}"/>
+	   	<property name="nsBatchSize" value="${netSuite.webService.sandbox1.batchSize}"/>
+	   	<property name="nsCurrentVersion" value="${netSuite.webService.sandbox1.currentVersion}"/>
+	   	<property name="nsPageSize" value="${netSuite.webService.sandbox1.pageSize}"/>
+	</bean>
+	
+	<bean id="netSuiteWebService_sandBox2" class="com.capgemini.cif.core.domain.NetSuiteWebService">
+	   	<property name="nsUserName" value="${netSuite.webService.sandbox2.userName}"/>
+	   	<property name="nsPassKey" value="${netSuite.webService.sandbox2.password}"/>
+	   	<property name="nsAccountId" value="${netSuite.webService.sandbox2.accountID}"/>
+	   	<property name="nsRoleId" value="${netSuite.webService.sandbox2.roleID}"/>
+	   	<property name="nsApplicationId" value="${netSuite.webService.sandbox2.applicationID}"/>
+	   	<property name="nsConnectionTimeout" value="${netSuite.webService.sandbox2.connectionTimeout}"/>
+	   	<property name="nsRecevieTimeout" value="${netSuite.webService.sandbox2.receiveTimeout}"/>
+	   	<property name="nsEndpointUrl" value="${netSuite.webService.sandbox2.endpointURL}"/>
+	   	<property name="nsBatchSize" value="${netSuite.webService.sandbox2.batchSize}"/>
+	   	<property name="nsCurrentVersion" value="${netSuite.webService.sandbox2.currentVersion}"/>
+	   	<property name="nsPageSize" value="${netSuite.webService.sandbox2.pageSize}"/>
+	</bean>
+
+	<bean id="netSuiteWebService_sandBox3" class="com.capgemini.cif.core.domain.NetSuiteWebService">
+	   	<property name="nsUserName" value="${netSuite.webService.sandbox3.userName}"/>
+	   	<property name="nsPassKey" value="${netSuite.webService.sandbox3.password}"/>
+	   	<property name="nsAccountId" value="${netSuite.webService.sandbox3.accountID}"/>
+	   	<property name="nsRoleId" value="${netSuite.webService.sandbox3.roleID}"/>
+	   	<property name="nsApplicationId" value="${netSuite.webService.sandbox3.applicationID}"/>
+	   	<property name="nsConnectionTimeout" value="${netSuite.webService.sandbox3.connectionTimeout}"/>
+	   	<property name="nsRecevieTimeout" value="${netSuite.webService.sandbox3.receiveTimeout}"/>
+	   	<property name="nsEndpointUrl" value="${netSuite.webService.sandbox3.endpointURL}"/>
+	   	<property name="nsBatchSize" value="${netSuite.webService.sandbox3.batchSize}"/>
+	   	<property name="nsCurrentVersion" value="${netSuite.webService.sandbox3.currentVersion}"/>
+	   	<property name="nsPageSize" value="${netSuite.webService.sandbox3.pageSize}"/>
+	</bean>
+
+<bean id="itemAttributeList"
+		class="com.capgemini.cif.core.service.impl.BatchItemServiceImpl"
+		factory-method="getAllAttributesByType" factory-bean="batchItemServiceImpl">
+		<constructor-arg value="ITEM" />
+	</bean>
+	<bean id="siteAttributeList"
+		class="com.capgemini.cif.core.service.impl.BatchItemServiceImpl"
+		factory-method="getAllAttributesByType" factory-bean="batchItemServiceImpl">
+		<constructor-arg value="SITE" />
+	</bean>
+</beans>

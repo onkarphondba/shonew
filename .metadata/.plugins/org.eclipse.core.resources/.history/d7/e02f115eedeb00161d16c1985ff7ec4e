@@ -1,0 +1,58 @@
+package com.sho.renaissance.batch.domain;
+
+import java.sql.Timestamp;
+import java.util.Date;
+
+public class CnvInvoiceInfoEnriched {
+
+	private String shoCustomerId;
+    private String shccustomeridentifier; 
+    private String shoInvoiceNumber;
+    private String shcInvoiceNumber;
+    private String shcSalesCheckNumber;
+    private Date shctransactiondate;
+    private Timestamp shctransactiontime;
+    private String sywmemberid;
+    private Long sywpointsredeemed;
+    private Long sywpointsearned;
+    private String externalid;
+    private String storenumber;
+    private String locationinternalid;
+    private String departmentinternalid;
+    private Double totalamount;
+    private Double totaltax;
+    private String discountitem;
+    private Double associatediscount;
+    private Double transactiondiscount;
+    private String memo;
+    private String shippingAddrLine1;
+    private String shippingAddrLine2;
+    private String shippingCity;
+    private String shippingState;
+    private String shippingZip;
+    private String billingaddresstype;
+    private String billingAddrLine1;
+    private String billingAddrLine2;
+    private String billingCity;
+    private String billingState;
+    private String billingZip;
+    private String shcitemnumber;
+    private String iteminternalid;
+    private String plus4;
+    private String sequenceid;
+    private Long quantity;
+    private Double regularprice;
+    private Double pluprice;
+    private Double sellingprice;
+    private String taxcode;
+    private Double taxrate;
+    private Double taxamount;
+    private String returnallowed;
+    private String updatedInNetsuite;
+    private String source;
+    private String correlationid;
+    
+	
+	
+	
+}

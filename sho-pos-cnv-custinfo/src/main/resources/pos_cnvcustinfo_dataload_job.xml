@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+		http://www.springframework.org/schema/aop
+		http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+	<import resource="job_launcher.xml" />
+
+	<!-- Job :pos_cnvcustinfo_dataload_job -->
+	<batch:job id="pos_cnvcustinfo_dataload_job" parent="baseJob">
+
+		<!-- Step 1: Update the Execution Context -->
+		<batch:step id="setExecutioContextStep" next="cnvcustinfoDataloadSplitStep" parent="baseStep">
+			<batch:tasklet ref="setExecutioContext" />
+			<batch:listeners>
+				<batch:listener ref="dimProcessStartListner" />
+			</batch:listeners>
+		</batch:step>
+		
+		<!-- Download file from S3 Location -->
+		<!--  <batch:step id="s3FileDownloadStep" parent="baseStep" next="cnvcustinfoDataloadSplitStep">
+		   <batch:tasklet ref="s3FileDownloadStepTasklet" />
+		</batch:step>  -->
+		
+		
+		
+		<!-- Execute following steps of dataload in parallel -->
+		 <batch:split id="cnvcustinfoDataloadSplitStep" next="calculateThresholdStep">
+			
+			 <batch:flow>
+				<!-- step 4: Read from S3 location, and write it into db -->
+				<batch:step id="loadCustInfoFileToDBTableStep" parent="baseStep">
+					<batch:tasklet>
+						<batch:chunk reader="s3LocalFileReader" processor="fileValidatorProcessor" writer="cnvCustomerInfodbWriter"
+							commit-interval="${cnvcustinfo.commitInterval}" />
+						<batch:listeners>
+							<batch:listener ref="dimProcessStartListner" />
+			                <batch:listener ref="dimItemRecordCountListener" />
+						</batch:listeners>
+					</batch:tasklet>
+				</batch:step>
+			</batch:flow> 
+			
+					
+ 			<batch:flow>
+			<!--  Step :Load the Subsidiary lookup data from netsuite to staging table -->
+			 <batch:step id="cnvCustInfoSubsidiaryLookupNSSlaveStep" parent="baseStep">
+				<batch:tasklet>
+					<batch:chunk reader="cnvCustInfoSubsidiaryLookupNetSuiteJDBCReader"
+						writer="cnvCustInfoSubsidiaryLookupWriterBean" commit-interval="${cnvcustinfo.lookup.commitInterval}" />
+				</batch:tasklet>
+				<batch:listeners>
+					<batch:listener ref="dimProcessStartListner" />
+				</batch:listeners>
+			</batch:step> 		
+			</batch:flow> 
+			
+        	<!--   <batch:flow>
+			  Step :Load the Category lookup data from netsuite to staging table
+			  <batch:step id="cnvCustInfoCategoryLookupNSSlaveStep" parent="baseStep">
+				<batch:tasklet>
+					<batch:chunk reader="cnvCustInfoCategoryLookupNetSuiteJDBCReader"
+							writer="cnvCustInfoCategoryLookupWriterBean" commit-interval="${cnvcustinfo.lookup.commitInterval}" />
+				</batch:tasklet>
+				<batch:listeners>
+					<batch:listener ref="dimProcessStartListner" />
+				</batch:listeners>
+			  </batch:step> 			
+			</batch:flow>    -->
+
+			<!-- <batch:flow>
+				Load the custInfo lookup data from netsuite to staging table
+				<batch:step id="loadNetSuiteToTempTableStep" parent="baseStep">
+					<batch:partition step="netSuiteToTempStep" partitioner="custCnvNetSuitePartitioner">
+						<batch:handler grid-size="${cnvcustinfo.grid.size}" task-executor="baseTaskExecutor" />
+					</batch:partition>
+				</batch:step>
+			</batch:flow>  -->
+		
+		</batch:split> 
+		
+	 	 <!-- calculate threshold step -->
+		<batch:step id="calculateThresholdStep" next="publishNextQueue" parent="baseStep">
+			<batch:tasklet ref="thresholdCalculationTasklet" />
+			<batch:listeners>
+				<batch:listener ref="dimProcessStartListner" />
+			</batch:listeners>
+		</batch:step> 
+		
+		<!-- send message to next queue -->
+		<batch:step id="publishNextQueue" parent="baseStep">
+			<batch:tasklet ref="sendMessageToQueue" />
+		</batch:step>
+		
+	</batch:job>
+	
+	<!--Step : Download file from S3 Location -->
+	 <bean id="s3FileDownloadStepTasklet" class="com.sho.renaissance.batch.tasklet.CnvCustInfoS3FileDownloadTasklet" scope="step">
+		<property name="fileName" value="#{jobParameters['fileName']}"/>
+		<property name="filePath" value="${sho.cnvcustinfo.writeFilePath}"/>
+		<property name="amazonS3Client" ref="amazonS3Client"/>
+	 </bean>
+	
+						
+ 	<!-- Step 2 File writer-->
+	   <bean id="cnvCustomerInfodbWriter" class="org.springframework.batch.item.database.JdbcBatchItemWriter" scope="step">
+           <property name="dataSource" ref="dataSource" />
+		   <property name="sql" value="${cnvCustInfo.insert.pos_cnvcustinfo_dataload}"/>
+		   <property name="itemSqlParameterSourceProvider">
+				<bean class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		   </property>
+       </bean>
+	
+	<!--step: calculate threshold step -->
+	 <bean id="thresholdCalculationTasklet" class="com.sho.renaissance.batch.tasklet.CnvThresholdCalculationTasklet" scope="step">
+		<property name="batchItemService" ref="batchItemServiceImpl" />
+		<property name="amazonSQSClient" ref="amazonSQSClient" />
+		<property name="dimProcessExcecutionListner" ref="dimProcessStartListner"/>
+	</bean>
+		
+		<!--step: send message to next queue -->
+		<bean id="sendMessageToQueue" class="com.sho.renaissance.batch.tasklet.SendMessageToQueue" scope="step">
+		<property name="amazonSQSClient" ref="amazonSQSClient" />
+		<property name="queuePropertyName" value="sho.pos_cnvcustinfo.process.queue" />
+		<property name="nextFlow" value="${cnvcustinfo.next.flow}" />
+	</bean>
+	
+	<!--   Step :Load the Category lookup data from netsuite to staging table -->
+	<bean id="cnvCustInfoCategoryLookupNetSuiteJDBCReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSourceNetSuite" />
+		<property name="queryProvider">
+			<bean
+				class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="databaseType" value="SQLSERVER" />
+				<property name="dataSource" ref="dataSourceNetSuite" />
+				<property name="selectClause" value="${cnvCustInfo.category.lookup.select.clause.netsuite}" />
+				<property name="fromClause" value="${cnvCustInfo.category.lookup.from.clause.netsuite}" />
+			    <property name="sortKey" value="${cnvCustInfo.category.lookup.sort.clause.netsuite}"/> 
+			</bean>
+		</property>
+		<property name="parameterValues">
+			<map>
+			</map>
+		</property>
+		<property name="pageSize" value="${cnvcustinfo.dataload.sho.db.pageSize}" />
+		<property name="fetchSize" value="${cnvcustinfo.dataload.sho.db.fetchSize}" />
+		<property name="rowMapper">
+			<bean
+				class="com.sho.renaissance.batch.reader.NetSuitelookupCategoryCnvCustinfoMapper" scope="step" >
+       	  		<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+			</bean>
+		</property>
+	</bean>
+	
+		<!-- temp_lookup_netsuite_poAndTrnasfers writer bean -->
+	<bean id="cnvCustInfoCategoryLookupWriterBean"
+		class="org.springframework.batch.item.database.JdbcBatchItemWriter"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="sql" value="${insert.clause.cnvCustInfo.category}" />
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+				class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+	</bean>
+	
+	
+	 <!-- Step :Load the Subsidiary lookup data from netsuite to staging table -->
+	<bean id="cnvCustInfoSubsidiaryLookupNetSuiteJDBCReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSourceNetSuite" />
+		<property name="queryProvider">
+			<bean
+				class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="databaseType" value="SQLSERVER" />
+				<property name="dataSource" ref="dataSourceNetSuite" />
+				<property name="selectClause" value="${cnvCustInfo.subsidiaries.lookup.select.clause.netsuite}" />
+				<property name="fromClause" value="${cnvCustInfo.subsidiaries.lookup.from.clause.netsuite} " />
+			    <property name="sortKey"  value="${cnvCustInfo.subsidiaries.lookup.sort.clause.netsuite}" />
+			</bean>
+		</property>
+		<property name="parameterValues">
+			<map>
+			</map>
+		</property>
+		<property name="pageSize" value="${cnvcustinfo.dataload.sho.db.pageSize}" />
+		<property name="fetchSize" value="${cnvcustinfo.dataload.sho.db.fetchSize}" />
+		<property name="rowMapper">
+			<bean class="com.sho.renaissance.batch.reader.NetSuiteLookupSubsidiaryCnvCustInfoMapper" scope="step" >
+       	  		<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+			</bean>
+		</property>
+	</bean>
+	
+	<!-- temp Subsidiary Lookup WriterBean  -->
+	<bean id="cnvCustInfoSubsidiaryLookupWriterBean"
+		class="org.springframework.batch.item.database.JdbcBatchItemWriter"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="sql" value="${insert.clause.cnvCustInfo.subsidiaries}" />
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+				class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+	</bean>
+	
+	<!-- step 4: Read downloaded file from  location, and write it into db -->
+	   <bean id="s3LocalFileReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<property name="resource" value="file:/${sho.cnvcustinfo.readFilePath}#{jobParameters['fileName']}"/>
+     	<property name="linesToSkip" value="${cnvcustinfo.skip.header}"/>
+			<property name="lineMapper">
+		<bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+		  <!-- split it -->
+		  <property name="lineTokenizer">
+		        	<bean
+						class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+						<property name="delimiter" value="${cnvcustinfo.file.delimiter}" />
+						<property name="quoteCharacter" value="${cnvcustinfo.quoteCharacter}" />
+					</bean>
+			</property>
+		  <property name="fieldSetMapper">
+		        <bean class="com.sho.renaissance.batch.reader.ShcFileCnvCustInfoFieldMapper" scope="step" >
+                    <property name="sourceSystem" value="#{jobParameters['sourceSystem']}"/>
+       	  			<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+       	  		</bean>
+		  </property>
+		</bean>
+	  </property>
+	</bean>
+ 	
+	
+	<!-- Step :Load the custInfo lookup data from netsuite to staging table -->
+	<batch:step id="netSuiteToTempStep">
+		<batch:tasklet>
+			<batch:chunk reader="cnvCustInfoLookupNetSuiteJDBCReader" writer="nsCustInfolookupWriterBean"
+				commit-interval="${custCnvInfo.dataload.sho.db.commitInterval}">
+				<batch:listeners>
+					<batch:listener ref="dimItemRecordCountListener" />
+				</batch:listeners>
+			</batch:chunk>
+		</batch:tasklet>
+	</batch:step>
+	
+	<!-- Step :Partitioner Load the custInfo lookup data from netsuite to staging table -->
+    <bean id="custCnvNetSuitePartitioner" class="com.sho.renaissance.batch.partitioner.NetSuiteCnvCustInfoPartitioner" scope="step">
+		<property name="dataSource" ref="dataSourceNetSuite" />
+	</bean>
+    
+
+	<!-- Step update Execution context -->
+	<bean id="setExecutioContext" class="com.sho.renaissance.batch.tasklet.FlowExecutionTasklet" scope="step" />
+
+	<!-- Step :Reader for  custInfo lookup data from netsuite to staging table -->
+	<bean id="cnvCustInfoLookupNetSuiteJDBCReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSourceNetSuite" />
+		<property name="queryProvider">
+			<bean
+				class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="databaseType" value="SQLSERVER" />
+				<property name="dataSource" ref="dataSourceNetSuite" />
+				<property name="selectClause" value="${cnvCustInfo.lookup.select.clause.netsuite}" />
+				<property name="fromClause" value="${cnvCustInfo.lookup.from.clause.netsuite} " />
+				<property name="whereClause" value="${cnvCustInfo.lookup.where.clause.netsuite}" />
+				<property name="sortKey" value="${cnvCustInfo.lookup.sortKey.clause.netsuite}" />
+			</bean>
+		</property>
+		<property name="parameterValues">
+			<map>
+				<entry key="startKey" value="#{stepExecutionContext[startKey]}" />
+				<entry key="endKey" value="#{stepExecutionContext[endKey]}" />
+			</map>
+		</property>
+		<property name="pageSize" value="${cnvcustinfo.dataload.sho.db.pageSize}" />
+		<property name="fetchSize" value="${cnvcustinfo.dataload.sho.db.fetchSize}" />
+		<property name="rowMapper">
+			<bean
+				class="com.sho.renaissance.batch.reader.NetSuiteLookupCnvCustInfoMapper" scope="step" >
+                    <property name="sourceSystem" value="#{jobParameters['sourceSystem']}"/>
+       	  			<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+       	  	</bean>		
+		</property>
+	</bean>
+
+
+
+	<!-- temp_lookup_netsuite_location writer bean -->
+	<bean id="nsCustInfolookupWriterBean"
+		class="org.springframework.batch.item.database.JdbcBatchItemWriter" scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="sql" value="${insert.clause.cnvcustinfo.netsuite}" />
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+				class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+	</bean>
+
+	<bean id="baseTaskExecutor" class="org.springframework.core.task.SimpleAsyncTaskExecutor" scope="step" />	
+</beans>

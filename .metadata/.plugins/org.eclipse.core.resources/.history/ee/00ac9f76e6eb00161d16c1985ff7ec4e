@@ -1,0 +1,290 @@
+package com.capgemini.cif.core.service;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.jdbc.core.ResultSetExtractor;
+
+import com.capgemini.cif.core.domain.BatchItem;
+import com.capgemini.cif.core.domain.CommonEntityAttribute;
+import com.capgemini.cif.core.validation.ConcreteComponentProduct;
+
+public interface IBatchItemService {
+	
+	/**
+	 * This method checks whether number of failures are above threshold
+	 * @param threshold
+	 * @param correlationId
+	 * @param entityType
+	 * @return
+	 */
+	Boolean isThresholdBreached(Integer threshold,String correlationId,String entityType);
+	
+	/**
+	 * This method calls createProcessStatus method of BatchItemDao class
+	 * @param processname
+	 * @param status
+	 */
+	void createProcessStatus (String processname , String status);
+	
+	/**
+	 * This methods receives predecessors names from CIF ,gets data from process_status table and decides whether predecessors processing is complete or not
+	 * @param predecessors
+	 * @return
+	 */
+	boolean isAllPredecessorsComplete(String[] predecessors);
+	
+	/**
+	 * @return
+	 */
+	Integer getClusterFeedAllRecords();
+	
+	/**
+	 * @return
+	 */
+	List<Map<String, Object>> getClusterFeedFailedRecords();
+	
+	/**
+	 * This method fetches all records from temp_dataload_rpcm_clusterfeed_enriched table
+	 * @return
+	 */
+	List<ConcreteComponentProduct> getTotalRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName);
+	
+	/**
+	 * This method fetches lookup failed records from temp_dataload_rpcm_clusterfeed_enriched table
+	 * @return
+	 */
+	List<ConcreteComponentProduct> getFailedRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName);
+	
+	/**
+	 * This method calls populate_rpcm_clusterfeed_enriched_proc procedure
+	 * @return 
+	 * @throws SQLException
+	 */
+	java.util.Map<String,Object> callClusterFeedStoredProcedure() throws SQLException;
+	
+	/**
+	 * This method calls populate_prcm_pricefeed_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callPricefeedStoredProcedure() throws SQLException;
+	
+	/**
+	 * This method calls populate_prcm_cnvhistoricalinventory_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvHistoricalInventoryStoredProcedure() throws SQLException;
+	
+	/**
+	 * This method calls populate_prcm_cnvhistoricalmetrics_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvHistoricalMetricsStoredProcedure() throws SQLException;
+	
+	/**
+	 * This method calls populate_prcm_cnvreceipts_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCNVReceiptsStoredProcedure() throws SQLException;
+
+	
+	/**
+	 * This method calls populate_ecomm_spindescattribute_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callItemDescriptiveAttributesStoredProcedure() throws SQLException;
+	
+	
+	/**
+	 * This method calls  stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callSpinAssetsStoredProcedure() throws SQLException;
+	
+	
+	/**
+	 * This method calls  stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callSpinItemStoredProcedure() throws SQLException;
+	
+	
+	/**
+	 * This method calls truncateTable method of batchItemDao
+	 * @param sql
+	 * @throws SQLException
+	 */
+	void truncateTable(String sql) throws SQLException;
+
+	/** Delete the data from given table which are older than input days.<br>
+	 * Input tableName should have "created" as one of the columns which should be populated
+	 * with the created date of the record.
+	 * @param tableName
+	 * @param numberOfDays
+	 * @throws SQLException
+	 */
+	void deleteTableDataOlderThanNDays(String tableName, int numberOfDays)
+			throws SQLException;
+	
+	
+
+	Map<String, Object> callStoreInvFeedStoredProcedure() throws SQLException;
+
+	ResultSet getEnrichedOnhandQuantityTotalRecords() throws SQLException;
+
+	ResultSet getEnrichedOnhandQuantityFailedRecords() throws SQLException;
+
+	Long getNumberOfRecordsProcessed(String tableName);
+
+	/**
+	 * This method calls site categories(INT-631) interface specific stored procedure 
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callSiteCategoriesStoredProcedure() throws SQLException;
+	
+	
+	Map<String, Object> callSpinImagesStoredProcedure() throws SQLException;
+
+	/**
+	 * This method returns NetSuite batch status id for given status name
+	 * @param statusName
+	 * @return
+	 */
+	String getNetsuiteBatchStatus(String statusName);
+	
+	/**
+	 * @param fileTypeName
+	 * @return
+	 */
+	String getNetsuiteFileType(String fileTypeName);
+
+	//Map<String, Object> callRelatedItemsStoredProcedure() throws SQLException;
+
+	void deleteTable(String conditionalDeleteTable) throws SQLException;
+	
+	/**
+	 * @param correlationId
+	 * @param entityType
+	 * @param isValid
+	 * @return
+	 */
+	List<BatchItem> getBatchItems(String correlationId, String entityType, Boolean isValid);
+	
+	/**
+	 * This methos returns all the attributes for Item as well as Site.
+	 * @param attributeType
+	 * @return
+	 */
+	List<CommonEntityAttribute> getAllAttributesByType(String attributeType);
+
+	ResultSet getNsNonExistantRecords() throws SQLException;
+	
+	Map<String, Object> callPartsAccessoriesStoredProcedure() throws SQLException;
+	
+	Map<String, Object> callProtectionAgreementsStoredProcedure() throws SQLException;
+	
+
+	/**
+	 * This method returns all the ListValues for poAndTransfers.
+	 * @param listValues
+	 * @return
+	 * @throws SQLException 
+	 */
+	
+
+	List<Map<String, Object>> getPoAndTransfersListValues() throws SQLException;
+	
+	/** The method run the entity's time of run depending on the flag the last successful or the last executed.
+	 * @param entityName
+	 * @param lastSuccessful
+	 * @return
+	 */
+	Date getTimeOfRun(String entityName, boolean lastSuccessful);
+
+	/** The method inserts the current time of the input entity 
+	 * @param entityName
+	 * @param date
+	 */
+	void insertProcessTime(String entityName, Date date);
+
+	/** The method updates the flag for success in last_process_run table.
+	 * @param entityType
+	 */
+	void updateLastSuccessfulRun(String entityType);
+
+	/**
+	 * This method calls conversion sales history(INT-046) interface specific stored procedure 
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvSalesHistoryStoredProcedure() throws SQLException;
+
+
+	
+	/**
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvInventoryOnHandStoredProcedure() throws SQLException;
+	
+	/**
+	 * @return
+	 */
+	public Map<String, Object> getLatestInCompleteProcessId();
+	/**
+	 * @param id
+	 * @param name
+	 * @param status
+	 */
+	//void createCnvProcessStatus(Long id ,String name , String status);
+	
+	/**
+	 * @param name
+	 * @param status
+	 * @param entity
+	 */
+	void createCnvLocProcessStatus(String name, String status, String entity);
+	/**
+	 * @param name
+	 * @param status
+	 * @param entity
+	 */
+	void createCnvRimProcessStatus(String name, String status, String entity); 
+	
+	
+	/**
+	 * @param name
+	 * @param status
+	 * @param entity
+	 *//*
+	void updateCnvProcessStatus(String name, String status, String entity);
+*/
+	
+	void updateCnvProcessStatus(Long processId ,String name, String status, String entity);
+	Long getNumberOfFailedRecords(String tableName);
+
+	Integer getTotalBatchCount(String correlationId, String entityType);
+
+	Integer getTotalFailedBatchCount(String correlationId, String entityType);
+	
+	Long getCNVNumberOfFailedRecords(String tableName);
+	
+	Long getCNVNumberOfRecordsProcessed(String tableName);
+	
+	Map<String, Object> callCnvCustInfoProcedure() throws SQLException;
+
+	Integer getCnvCustInfoInvalidRecordCount(String correlationId) throws SQLException;
+
+	Integer getCnvCustInfoTotalRecordCount(String correlationId) throws SQLException;
+}

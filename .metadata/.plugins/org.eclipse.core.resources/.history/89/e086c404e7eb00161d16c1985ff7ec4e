@@ -1,0 +1,403 @@
+/**
+ * 
+ */
+package com.capgemini.cif.core.dao;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowMapper;
+
+import com.capgemini.cif.core.domain.BatchItem;
+import com.capgemini.cif.core.domain.CommonEntityAttribute;
+import com.capgemini.cif.core.domain.ProcessStatus;
+import com.capgemini.cif.core.validation.ConcreteComponentProduct;
+
+/**
+ * @author gdhimate
+ *
+ */
+
+public interface IBatchItemDao {
+
+	String POANDTRANSFERS_GETLISTVALUES = "select list_id,list_PurchaseOrder from temp_lookup_netsuite_poAndTransfers";
+	String GET_BATCH_ITEM_BY_STATUS = "select * from batch_item where isValid = :status";
+	
+	String GET_ALL_ATTRIBUTES = "select JE_ATTRIBUTE_NAME, ATTRIBUTE_SQL_TYPE from common_entity_attributes  join je_attribute_sql_type on common_entity_attributes.JE_ATTRIBUTE_SQL_TYPE_ID = je_attribute_sql_type.ID where  USE_IN_JE = 1";
+    String GET_ALL_ATTRIBUTES_BY_TYPE ="select JE_ATTRIBUTE_NAME, ATTRIBUTE_SQL_TYPE from common_entity_attributes  join je_attribute_sql_type on common_entity_attributes.JE_ATTRIBUTE_SQL_TYPE_ID =  je_attribute_sql_type.ID where  USE_IN_JE = 1 and ENTITY_TYPE=:attributeType";
+    String CLUSTERFEED_GET_ENRICHED_TABLE_FAILED_RECORDS = "select * from temp_dataload_rpcm_clusterfeed_enriched where lookup_failure = :lookupFailure or input_data_error = :inputDataError";
+    String CLUSTERFEED_GET_ENRICHED_TABLE_ALL_RECORDS_COUNT =  "select count(*) from temp_dataload_rpcm_clusterfeed_enriched";
+    String PRICEFEED_GET_ALL_RECORDS_ENRICHED = "select * from &table ";
+    String PRICEFEED_GET_FAILED_RECORDS_ENRICHED =  "select * from &table where item_id is null";
+    String CLUSTERFEED_GET_CLUSTERID_FOR_ONLINEPRICE ="select cluster_id from temp_lookup_netsuite_cluster where cluster_name = :clusterFeedName";
+    String CLUSTERFEED_DEFAULT_CLUSTERNAME ="Online Price";
+    String SPINIMAGES_GET_ALL_RECORDS_ENRICHED = "select * from temp_dataload_netsuite_spinimages_enriched ";
+    
+    String CLUSTERFEED_PROCEDURECALL = "{call populate_rpcm_clusterfeed_enriched_proc(?, ?, ?)}";
+    String PRICEFEED_PROCEDURECALL = "{call populate_prcm_pricefeed_enriched_proc(?,?)}";
+
+    String CNVHISTORICALMETRICS_PROCEDURECALL = "{call populate_cnv_historicalmetrics_enriched_proc(?,?)}";
+    String CNVRECEIPTS_PROCEDURECALL = "{call populate_cnv_receipts_enriched_proc(?,?)}";
+    String CNVHISTINVENT_PROCEDURECALL="{call populate_cnv_historicalinventory_enriched_proc(?,?)}";
+    String STOREINVFEED_PROCEDURECALL = "{call populate_ecomm_storeinventory_enriched_proc(?, ?)}";
+    String GET_NETSUITE_BATCH_STATUS = "select status from temp_lookup_ns_batch_status where status_id = :status_id";
+    String GET_LAST_SUCCESSFUL_RUN_TIME = "select max(start_time) from last_process_run where entity_name = :entityName and success_flag= :status";
+
+    String SPINASSETS_PROCEDURECALL = "{call populate_ecomm_spinassets_enriched_proc(?,?)}";
+    String SPINITEM_PROCEDURECALL = "{call populate_ecomm_spinitem_enriched_proc(?,?)}";
+	String ITEMDESCATTR_PROCEDURECALL = "{call populate_ecomm_spindescattribute_enriched_proc(?,?)}";
+	String SITECATEGORIES_PROCEDURECALL = "{call populate_ecomm_spinsitecategories_enriched_proc(?, ?)}";
+	String STATUS_COMPLETED = "COMPLETED";
+	String GET_PREDECESSORS_COMPLETE_FLAG = "select * from PROCESS_STATUS where name in (:name) and date(created)=current_date() and STATUS = :status";
+    String SPINIMAGES_PROCEDURECALL = "{call populate_ecomm_spinimages_enriched_proc(?,?)}";
+
+	String GET_NETSUITE_ACTION_TYPE_ID ="select action_id from temp_lookup_netsuite_action where action = :action";
+	String GET_NETSUITE_FILETYPE_TYPE_ID ="select filetype_id from temp_lookup_netsuite_filetype where filetype = :filetype";
+	String ERROR_CODE = "ErrorCode";
+	String ERROR_MESSAGE = "ErrorMessage";
+	String MAX_TIME = "select max(start_time) from last_process_run where entity_name= :entity_name";
+	String DELETE_DATA_OLDER_THAN_NDAYS = "DELETE FROM &tableName WHERE created < DATE_SUB(NOW(), INTERVAL ? DAY)";
+	String DELETE_PREVIOUS_DATA = "DELETE FROM last_process_run WHERE entity_name=? and start_time <> ?";
+
+	String CNVSALESHISTORY_PROCEDURECALL = "{call populate_cnv_initialsaleshistory_enriched_proc(?,?)}";
+	//String  = "temp_dataload_ecomm_spinsitecategories";
+	String CNVCUSTINFO_PROCEDURECALL = "{call populate_ns_pos_cnvcustinfo_enriched_proc(?, ?)}";
+    
+    //String RELATEDITEMS_PROCEDURECALL = "{call populate_ecomm_spinrelateditems_enriched_proc(?,?)}";
+    String PARTS_AND_ACCESSORIES_PROCEDURECALL = "{call populate_ecomm_spinpartsaccessories_enriched_proc(?,?)}";
+	String PROTECTION_AGREEMENTS_PROCEDURECALL = "{call populate_ecomm_spinprotectionagreement_enriched_proc(?,?)}";
+    
+	String CREATE_PROCESS_ENTRY = "insert into last_process_run(entity_name,start_time,success_flag) values(:entityName, :date,false)";
+	String CREATE_BATCH_ITEM = "insert into batch_item(correlation_id,item_xml_data,isValid,error_message,entity_type) values(:correlation_id, :item_xml_data,:isValid,:error_message,:entity_type)";
+	String UPDATE_PROCESS_STATUS = "update last_process_run set success_flag = true where entity_name=:entity_name";
+   
+    
+	String UPDATE_LOC_STATUS = "update process_status_cnv001 set loc_status = :status, loc_dataload = :dataload where id = :processId and entity = :entity";
+	String UPDATE_RIM_STATUS = "update process_status_cnv001 set rim_status = :status, rim_dataload = :dataload where id = :processId and entity = :entity";
+	String UPDATE_PROCESS_ENITY_STATUS = "update process_status_cnv001 set entity_status = :status where id = :processId and entity = :entity";
+	String SET_PROCESS_STATUS_LOC = "insert into process_status_cnv001 (loc_dataload ,loc_status,entity) values (:name , :status, :entity)";
+	String SET_PROCESS_STATUS_RIM = "insert into process_status_cnv001 (rim_dataload ,rim_status,entity) values (:name , :status,:entity)";
+	String GET_LATEST_COMPLETE_PROCESS = "SELECT id FROM process_status_cnv001 WHERE created = (SELECT MAX(created) FROM process_status_cnv001) and entity_status is null or entity_status = 'INITIATED'";
+	String GET_LATEST_COMPLETE_PROCESS_ID ="SELECT id FROM process_status_cnv001 WHERE created = (SELECT MAX(created) FROM process_status_cnv001) and entity_status is null AND loc_status = :status and  rim_status = :status and  entity = :entityName";
+	String UPDATE_PROCESS_STATUS_ON_ID = "update process_status_cnv001 set entity_status = :status where entity = :entityName and id = :processId";
+	String INVENTORY_ONHAND_PROCEDURECALL = "{call populate_cnv_inventoryonhand_enriched_proc(?,?)}";
+	
+	String LOC_ = "loc_";
+	String RIM_ = "rim_";
+
+    String  GET_UPDATED_RECORDS = "select count(*) from $tableName where updated_in_netsuite  = :updatedInNetsuite ";
+    String  GET_CNV_UPDATED_RECORDS = "select count(*) from $tableName where sent_to_je  = :sentToJE ";
+	
+    //String  = "temp_dataload_ecomm_spinsitecategories";
+    
+	
+
+	/**
+	 * This method returns total number of records present in batch_item table
+	 * @param correlationId
+	 * @param entityType
+	 * @param isValid
+	 * @return
+	 */
+	Integer getBatchItemCount(String correlationId,String entityType,Boolean isValid);
+
+	/**
+	 * This method returns all records present in batch_item table having given status
+	 * @param status
+	 * @return
+	 */
+	List<BatchItem> getBatchItemByStatus(Boolean status);
+
+	/**
+	 * 
+	 * @param sql
+	 * @param rowMapper
+	 * @return
+	 */
+	List<Object> getSelectedItems(String sql,RowMapper rowMapper);
+
+	/**
+	 * @param sql
+	 * @param paramMap
+	 * @return
+	 */
+	Integer getTotalCount(String sql,Map<String,String> paramMap);
+
+	/**
+	 * This method inserts entry in PROCESS_STATUS table
+	 * @param processname
+	 * @param status
+	 */
+	void createProcessStatus (String processname , String status);
+
+	/**
+	 * This method fetches all records of PROCESS_STATUS table
+	 * @param processes
+	 * @return
+	 */
+	List<ProcessStatus> getProcessStatus (List<String> processes);
+	
+	/**
+	 * @param lookupFailure
+	 * @param inputDataError
+	 * @return
+	 */
+	List<Map<String, Object>> getClusterFeedFailedRecords();
+	
+	/**
+	 * @return
+	 */
+	Integer getClusterFeedAllRecords();
+	
+	/**
+	 * This method fetches all records from temp_dataload_rpcm_clusterfeed_enriched table
+	 * @return
+	 */
+	List<ConcreteComponentProduct> getTotalRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName);
+
+	/**
+	 * This method fetches lookup failed records from temp_dataload_rpcm_clusterfeed_enriched table
+	 * @return
+	 */
+	List<ConcreteComponentProduct> getFailedRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName);
+
+	/**
+	 * This method returns cluster_feed_id for given cluster_feed_name
+	 * @param clusterFeedName
+	 * @return
+	 */
+	Integer getClusterfeedId(String clusterFeedName);
+
+	/**
+	 * This method calls populate_rpcm_clusterfeed_enriched_proc procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String,Object> callClusterFeedStoredProcedure() throws SQLException;
+
+
+	/**
+	 * This method calls populate_prcm_pricefeed_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callPricefeedStoredProcedure() throws SQLException;
+	/**
+	 * This method calls populate_cnv_historicalmetrics_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	
+	
+	Map<String, Object> callCNVReceiptsStoredProcedure() throws SQLException;
+
+	Map<String, Object> callCnvHistoricalMetricsStoredProcedure() throws SQLException;
+	/**
+	 * This method calls update_cnvhistoricalinventory_dataload_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvHistoricalInventoryStoredProcedure() throws SQLException;
+	/**
+	 * This method calls populate_ecomm_spindescattribute_enriched_proc stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callItemDescriptiveAttributesStoredProcedure()  throws SQLException;
+
+	/**
+	 * This method calls truncate query for given set of tables
+	 * @param sql
+	 */
+	void truncateTable(String sql);
+
+
+	Map<String, Object> callStoredInvFeedProcedure() throws SQLException;
+
+	ResultSet getStoreInvEnrichedOnhandQuantityTotalRecords() throws SQLException;
+
+	ResultSet getStoreInvEnrichedOnhandQuantityFailedRecords() throws SQLException;
+
+	Long getNumberOfRecordsProcessed(String tableName);
+
+
+	/** Get the actionType from staging db's temp_lookup_netsuite_action table.
+	 * Value for actionName can be one from NetSuiteActionNameEnum
+	 * @param actionName
+	 * @return
+	 */
+	String getNetsuiteActionType(String actionName);
+
+	/**Get the fileType from staging db's temp_lookup_netsuite_filetype table.
+	 * Value for fileType can be one from NetSuiteFileTypeEnum
+	 * @param fileTypeName
+	 * @return
+	 */
+	String getNetsuiteFileType(String fileTypeName);
+
+	/**Get the statusName from staging db's temp_lookup_ns_batch_status table.
+	 * Value for statusName can be one from NetSuiteBatchStatusEnum
+	 * @param statusName
+	 * @return
+	 */
+	String getNetsuiteBatchStatus(String statusName);
+
+	int deleteTableDataOlderThanNDays(String tableName, int numberOfDays);
+
+
+	
+	/**
+	 * This method calls Spin Assets stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callSpinAssetsStoredProcedure() throws SQLException;
+	
+	/**
+	 * This method calls Spin Item stored procedure
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callSpinItemStoredProcedure() throws SQLException;
+
+	/**
+	 * This method calls site categories(INT-631) interface specific stored procedure 
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String,Object> callSiteCategoriesStoredProcedure() throws SQLException;
+
+
+	//Map<String, Object> callRelatedItemsStoredProcedure() throws SQLException;
+
+	void deleteTable(String conditionalDeleteTable);
+
+	Map<String, Object> callSpinImagesStoredProcedure() throws SQLException;
+	
+	/**
+	 * Get all the batch item object based on criteria
+	 * 
+	 * @param correlationId
+	 * @param entityType
+	 * @param isValid
+	 * @return
+	 */
+	List<BatchItem> getBatchItems(String correlationId, String entityType, Boolean isValid);
+	
+	  /**
+     * This method is to return all attributes for site as well as Item.
+     * @param attributeType
+     * @return
+     */
+    List<CommonEntityAttribute> getAllAttributesByType(String attributeType);
+
+	ResultSet getNsNonExistantRecors() throws SQLException;
+	Map<String, Object> callPartsAccessoriesStoredProcedure() throws SQLException;
+	
+	Map<String, Object> callProtectionAgreementsStoredProcedure() throws SQLException;
+	
+
+	/**
+	 * @throws SQLException 
+	 * This method returns all the ListValues for poAndTransfers.
+	 * @param listValues
+	 * @return
+	 * @throws  
+	 */
+	List<Map<String, Object>> getPoAndTransfersListValues();
+
+	/** Returns the last successful/run instance of the input entity
+	 * @param entityName
+	 * @param lastSuccessFul
+	 * @return
+	 */
+	Date getRunTimeForEntity(String entityName, boolean lastSuccessFul);
+
+	/** Inserts the input process into last_process_run table with the provided time
+	 * @param entityName
+	 * @param date
+	 * @return
+	 */
+	long insertProcessTime(String entityName, Date date);
+
+	/** creates new batchItem into batchItem table with the input domain object
+	 * @param batchItem
+	 */
+	void createBatchItem(BatchItem batchItem);
+
+	/** deletes all the old records for the input entity leaving the latest
+	 * @param entityType
+	 */
+	void deleteOlderRecords(String entityType);
+
+	/**Updates the current status of the input entity to success 
+	 * @param entityType
+	 */
+	void updateCurrentStatus(String entityType);
+
+	/**
+	 * This method calls conversion sales history(INT-046) interface specific stored procedure 
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvSalesHistoryStoredProcedure() throws SQLException;
+
+	
+	/**
+	 * @return
+	 * @throws SQLException
+	 */
+	Map<String, Object> callCnvInventoryOnHandStoredProcedure() throws SQLException;
+	
+	/**
+	 * @return
+	 */
+	Map<String, Object> getLatestInCompleteProcessId();
+	
+	/**
+	 * @param id
+	 * @param name
+	 * @param status
+	 * @param entity
+	 */
+	void updateCnvProcessStatus(Long processId ,String name, String status, String entity);
+	
+	/**
+	 * @param name
+	 * @param status
+	 * @param entity
+	 */
+	void createCnvLocProcessStatus(String name, String status, String entity);
+	/**
+	 * @param name
+	 * @param status
+	 * @param entity
+	 */
+	void createCnvRimProcessStatus(String name, String status, String entity); 
+	/**
+	 * @param entityName
+	 * @return
+	 */
+	Long getCompleteProcessStatus(String entityName);
+	/**
+	 * @param processId
+	 * @param entityName
+	 * @param status
+	 */
+	void updateProcessStatus(Long processId, String entityName, String status);
+	Long getNumberOfUnProcessedRecords(String tableName);
+	
+	Long getCNVNumberOfUnProcessedRecords(String tableName);
+	
+	Long getCNVNumberOfRecordsProcessed(String tableName);
+	
+	Map<String, Object> callcnvCustInfoProcedure() throws SQLException;
+
+	Integer getCnvCustInfoFailedRecords(String correlationId) throws SQLException;
+
+	Integer getCnvCustInfoTotalRecordCount(String correlationId) throws SQLException;
+}

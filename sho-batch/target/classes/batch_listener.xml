@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+	<!-- job listener -->
+	<bean id="baseJobListener" class="com.sho.renaissance.batch.listener.BaseJobListener" >
+	   <property name="amazonSQSClient" ref="amazonSQSClient"/>
+	</bean>
+	<bean id="baseStepListener" class="com.sho.renaissance.batch.listener.BaseStepListener" />
+	<bean id="baseItemListener" class="com.sho.renaissance.batch.listener.BaseItemListener" />
+	
+    <bean id="dimProcessStartListner" class="com.sho.renaissance.batch.listener.DimProcessExcecutionListner" >
+        <property name="amazonSQSClient" ref="amazonSQSClient"/>
+    </bean>
+    <bean id="dimItemRecordCountListener" class="com.sho.renaissance.batch.listener.DimItemRecordCountListener" >
+    	<property name="amazonSQSClient" ref="amazonSQSClient"/>
+    </bean>
+    
+    <bean id="dimProcessCompleteListner" class="com.sho.renaissance.batch.listener.DimProcessCompleteListener" >
+        <property name="amazonSQSClient" ref="amazonSQSClient"/>
+    </bean>
+    
+    
+	<!-- parent job -->
+	<batch:job id="baseJob" abstract="true" restartable="true">
+		<batch:listeners>
+			<batch:listener ref="baseJobListener" />
+		</batch:listeners>
+	</batch:job>
+
+	<!-- The parent step -->
+	<batch:step id="baseStep" abstract="true">
+		<batch:tasklet>
+			<batch:listeners>
+				<batch:listener ref="baseItemListener" />
+			</batch:listeners>
+		</batch:tasklet>
+		<batch:listeners>
+			<batch:listener ref="baseStepListener" />
+			<batch:listener ref="dimProcessStartListner" />
+		</batch:listeners>
+	</batch:step>
+
+</beans>

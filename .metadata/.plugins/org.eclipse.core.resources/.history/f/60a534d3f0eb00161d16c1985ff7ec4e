@@ -1,0 +1,70 @@
+package com.sho.renaissance.batch.reader;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.springframework.jdbc.core.RowMapper;
+
+import com.sho.renaissance.batch.domain.CnvInvoiceInfoEnriched;
+
+public class CnvInvoiceInfoEnrichedMapper implements RowMapper<CnvInvoiceInfoEnriched> {
+
+	@Override
+	public CnvInvoiceInfoEnriched mapRow(ResultSet rs, int rowNum) throws SQLException {
+		
+		CnvInvoiceInfoEnriched invoiceinfo = new CnvInvoiceInfoEnriched();
+		
+		invoiceinfo.setShoCustomerId(rs.getString("sho_customer_id"));
+		invoiceinfo.setShccustomeridentifier(rs.getString("shc_customer_identifier"));
+		invoiceinfo.setShoInvoiceNumber(rs.getString("customer_type"));
+		invoiceinfo.setShcInvoiceNumber(rs.getString("customer_first_name"));
+		invoiceinfo.setShcSalesCheckNumber(rs.getString("customer_middle_name"));
+		invoiceinfo.setShctransactiondate(rs.getDate("customer_last_name"));
+		invoiceinfo.setShctransactiontime(rs.getTimestamp("company_name"));
+		invoiceinfo.setSywmemberid(rs.getString("category_name"));
+		invoiceinfo.setSywpointsredeemed(rs.getLong("category_internal_id"));
+		invoiceinfo.setSywpointsearned(rs.getLong("comments"));
+		invoiceinfo.setExternalid(rs.getString("email"));
+		invoiceinfo.setStorenumber(rs.getString("phone"));
+		invoiceinfo.setLocationinternalid(rs.getString("subsidiary_name"));
+		invoiceinfo.setDepartmentinternalid(rs.getString("subsidiary_internal_id"));
+		invoiceinfo.setTotalamount(rs.getDouble("web_address"));
+		invoiceinfo.setTotaltax(rs.getDouble("web_address"));
+		invoiceinfo.setDiscountitem(rs.getString("shipping_addr_line1"));
+		invoiceinfo.setAssociatediscount(rs.getDouble("web_address"));
+		invoiceinfo.setTransactiondiscount(rs.getDouble("web_address"));
+		invoiceinfo.setMemo(rs.getString("shipping_addr_line1"));
+		invoiceinfo.setShippingAddrLine1(rs.getString("shipping_addr_line1"));
+		invoiceinfo.setShippingAddrLine2(rs.getString("shipping_addr_line2"));
+		invoiceinfo.setShippingCity(rs.getString("shipping_city"));
+		invoiceinfo.setShippingState(rs.getString("shipping_state"));
+		invoiceinfo.setShippingZip(rs.getString("shipping_zip"));
+		invoiceinfo.setBillingaddresstype(rs.getString("default_shipping_flag"));
+		invoiceinfo.setBillingAddrLine1(rs.getString("billing_addr_line1"));
+		invoiceinfo.setBillingAddrLine2(rs.getString("billing_addr_line2"));
+		invoiceinfo.setBillingCity(rs.getString("billing_city"));
+		invoiceinfo.setBillingState(rs.getString("billing_state"));
+		invoiceinfo.setBillingZip(rs.getString("billing_zip"));
+		
+		invoiceinfo.setShcitemnumber(rs.getString("default_billing_flag"));
+		invoiceinfo.setIteminternalid(rs.getString("operation_type"));
+		invoiceinfo.setPlus4(rs.getString("operation_type"));
+		invoiceinfo.setSequenceid(rs.getString("operation_type"));
+		invoiceinfo.setQuantity(rs.getLong("comments"));
+		invoiceinfo.setRegularprice(rs.getDouble("web_address"));
+		invoiceinfo.setPluprice(rs.getDouble("web_address"));
+		invoiceinfo.setSellingprice(rs.getDouble("web_address"));
+		invoiceinfo.setTaxcode(rs.getString("operation_type"));
+		invoiceinfo.setTaxrate(rs.getDouble("web_address"));
+		invoiceinfo.setTaxamount(rs.getDouble("web_address"));
+		invoiceinfo.setReturnallowed(rs.getString("operation_type"));
+		
+		invoiceinfo.setUpdatedInNetsuite(rs.getString("Y"));
+		invoiceinfo.setSource(rs.getString("source"));
+		invoiceinfo.setCorrelationid(rs.getString("correlationid"));
+		invoiceinfo.setShcitemnumber(rs.getString("default_billing_flag"));
+		
+		return invoiceinfo;
+	}
+
+}

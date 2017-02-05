@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+    http://www.springframework.org/schema/util 
+    http://www.springframework.org/schema/util/spring-util-2.5.xsd ">
+    
+    
+<!--<bean
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+
+		<property name="location">
+			<value>connection_dev.properties</value>
+		</property>
+	</bean>-->
+ 
+    
+
+	<bean id="encryptorConfig" class="org.jasypt.encryption.pbe.config.EnvironmentStringPBEConfig">
+    	<property name="algorithm" value="PBEWithMD5AndDES" />
+    	<property name="passwordEnvName" value="PASSWORD_ENV_VARIABLE" />
+	</bean>
+ 
+	<bean id="encryptor" class="org.jasypt.encryption.pbe.StandardPBEStringEncryptor">
+    	<property name="config" ref="encryptorConfig" />
+	</bean>
+ 
+	<bean class="org.jasypt.spring.properties.EncryptablePropertyPlaceholderConfigurer">
+    	<constructor-arg ref="encryptor" />
+    	<property name="locations">
+        	<list>
+            	<value>connection_${target_env}.properties</value>
+        	</list>
+    	</property>
+	</bean> 
+	
+
+	<bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource"
+		destroy-method="close">
+		<property name="driverClassName" value="${sho.db.driverClassName}" />
+		<property name="url" value="${sho.db.url}" />
+		<property name="username" value="${sho.db.username}" />
+		<property name="password" value="${sho.db.password}" />
+		<property name="testOnBorrow" value="${sho.db.testOnBorrow}" />
+		<property name="validationQuery" value="${sho.db.validationQuery}" />
+	</bean>
+	
+	<bean id="namedParameterJdbcTemplate"
+		class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+		<constructor-arg ref="dataSource" />
+	</bean>
+	
+	<bean id="batchItemDaoImpl" class="com.capgemini.cif.core.dao.impl.BatchItemDaoImpl">
+		<property name="namedParameterJdbcTemplate" ref="namedParameterJdbcTemplate"></property>
+	</bean>
+
+	<bean id="batchItemServiceImpl"
+		class="com.capgemini.cif.core.service.impl.BatchItemServiceImpl">
+		<property name="batchItemDao" ref="batchItemDaoImpl"></property>
+		<property name="genericProcessDao" ref="genericProcessDaoImpl"></property>
+	</bean>
+	<bean id="messageResource" name="messageResource"
+		class="org.springframework.context.support.ResourceBundleMessageSource">
+		<property name="basenames">
+			<list>
+				<!-- -->
+				<value>messages</value>
+			</list>
+		</property>
+	</bean>
+	<bean id="exceptionHandler" name="exceptionHandler"
+		class="com.capgemini.cif.core.exception.ExceptionHandler">
+		<property name="resources" ref="messageResource" />
+	</bean>
+
+	<!-- <bean id="itemAttributeList"
+		class="com.capgemini.cif.core.service.impl.BatchItemServiceImpl"
+		factory-method="getAllAttributesByType" factory-bean="batchItemServiceImpl">
+		<constructor-arg value="ITEM" />
+	</bean>
+	<bean id="siteAttributeList"
+		class="com.capgemini.cif.core.service.impl.BatchItemServiceImpl"
+		factory-method="getAllAttributesByType" factory-bean="batchItemServiceImpl">
+		<constructor-arg value="SITE" />
+	</bean> -->
+	
+	
+	<!-- EhCacheCacheManager setup -->
+
+	<!-- <bean id="cacheManager" class="org.springframework.cache.ehcache.EhCacheCacheManager"
+		lazy-init="true">
+		<property name="cacheManager" ref="ehcache" />
+	</bean> -->
+
+	<!-- Ehcache library setup -->
+	<!-- <bean id="ehcache"
+		class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean"
+		lazy-init="true">
+		<property name="configLocation" value="classpath:ehcache.xml" />
+	</bean> -->
+
+</beans>

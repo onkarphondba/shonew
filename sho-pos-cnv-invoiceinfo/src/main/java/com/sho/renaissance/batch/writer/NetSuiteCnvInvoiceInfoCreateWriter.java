@@ -1,0 +1,195 @@
+package com.sho.renaissance.batch.writer;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import javax.xml.datatype.DatatypeConfigurationException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.springframework.batch.core.ExitStatus;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.StepExecutionListener;
+import org.springframework.batch.item.database.JdbcBatchItemWriter;
+
+import com.capgemini.cif.core.exception.ExceptionHandler;
+import com.capgemini.cif.core.exception.GenericCoreException;
+import com.netsuite.webservices.lists.relationships_2016_1.Customer;
+import com.netsuite.webservices.lists.relationships_2016_1.CustomerAddressbook;
+import com.netsuite.webservices.lists.relationships_2016_1.CustomerAddressbookList;
+import com.netsuite.webservices.platform.common_2016_1.Address;
+import com.netsuite.webservices.platform.core_2016_1.CustomFieldList;
+import com.netsuite.webservices.platform.core_2016_1.CustomFieldRef;
+import com.netsuite.webservices.platform.core_2016_1.LongCustomFieldRef;
+import com.netsuite.webservices.platform.core_2016_1.RecordRef;
+import com.netsuite.webservices.platform.core_2016_1.StringCustomFieldRef;
+import com.netsuite.webservices.platform.messages_2016_1.WriteResponseList;
+import com.netsuite.webservices.platform_2016_1.NetSuitePortType;
+import com.netsuite.webservices.setup.customization_2016_1.CustomRecord;
+import com.sho.renaissance.batch.constants.BatchConstants;
+import com.sho.renaissance.batch.domain.CnvInvoiceInfoEnriched;
+
+import com.sho.renaissance.batch.listener.DimProcessExcecutionListner;
+import com.sho.renaissance.batch.util.CommonUtils;
+import com.sho.renaissance.batch.util.NetSuiteWebServiceUtils;
+
+/** The class updates the records in netsuite and updates the status of the same into staging table.
+ * @author parthaka
+ *
+ */public class NetSuiteCnvInvoiceInfoCreateWriter extends JdbcBatchItemWriter implements StepExecutionListener {
+
+	private static Log logger = LogFactory.getLog(NetSuiteCnvInvoiceInfoCreateWriter.class);
+	private NetSuiteWebServiceUtils nsUtils;
+	private NetSuitePortType _port;
+	private DimProcessExcecutionListner dimProcessExcecutionListner;
+	private JobParameters jobParameters;
+	private String correlationId;
+	private String entityType;
+
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public void write(List items) throws Exception {
+		List<CnvInvoiceInfoEnriched> cnvCustInfoEnriched = (List<CnvInvoiceInfoEnriched>) items;
+		_port = nsUtils.getPort();
+		List<CnvInvoiceInfoEnriched> updatedData = createStoreInvFeed(cnvCustInfoEnriched);
+		super.write(updatedData);
+	}
+
+	/** Get the format of the request for each netsuite entity.
+	 * @param temp
+	 * @return
+	 */
+	private Customer getCustomRecord(CnvInvoiceInfoEnriched temp) {
+		Customer customer = new Customer();
+		customer.setEmail(temp.getEmail());
+		customer.setIsPerson((temp.getCustomerType().equals("true")?true:false));
+		customer.setFirstName(temp.getCustomerFirstName());
+		customer.setMiddleName(temp.getCustomerMiddleName());
+		customer.setLastName(temp.getCustomerMiddleName());
+	    customer.setCompanyName(temp.getCompanyName());
+	    customer.setPhone(temp.getPhone());
+	    customer.setEmail(temp.getEmail());
+	    customer.setUrl(temp.getWebAddress());
+	  
+	    RecordRef recRef = new RecordRef();
+	    recRef.setInternalId("2");
+	    customer.setCategory(recRef);
+	   
+	    recRef = new RecordRef();
+	    recRef.setInternalId("1");
+	    customer.setSubsidiary(recRef);
+	    
+	    CustomerAddressbookList addressBookList = new CustomerAddressbookList();
+	    CustomerAddressbook[] customerAddressBook = new CustomerAddressbook[]{new CustomerAddressbook(),new CustomerAddressbook()};
+	     
+	    customerAddressBook[0].setDefaultShipping((temp.getDefaultShippingFlag().equals("true")?true:false));
+	    Address shipAddress  = new Address();
+	    shipAddress.setAddr1(temp.getShippingAddrLine1());
+	    shipAddress.setAddr2(temp.getShippingAddrLine2());
+	    shipAddress.setCity(temp.getShippingCity());
+	    shipAddress.setState(temp.getShippingState());
+	    shipAddress.setZip(temp.getShippingZip());
+	    customerAddressBook[0].setAddressbookAddress(shipAddress);
+	  
+	    customerAddressBook[1].setDefaultBilling(temp.getDefaultBillingFlag().equals("true")?true:false);
+	    Address billingAddress = new Address();
+	    billingAddress.setAddr1(temp.getBillingAddrLine1());
+	    billingAddress.setAddr2(temp.getBillingAddrLine2());
+	    billingAddress.setCity(temp.getBillingCity());
+	    billingAddress.setState(temp.getBillingState());
+	    billingAddress.setZip(temp.getBillingZip());
+	    customerAddressBook[1].setAddressbookAddress(billingAddress);
+	    
+	    addressBookList.setAddressbook(customerAddressBook);
+	    customer.setAddressbookList(addressBookList);
+
+	    StringCustomFieldRef[] custFieldRef = new StringCustomFieldRef[]{new StringCustomFieldRef()};
+	    custFieldRef[0].setScriptId("custentity_sho_shccustomerid");
+	    custFieldRef[0].setValue(temp.getShcCustomerIndentifier());
+	    CustomFieldList customFieldList = new CustomFieldList();
+	    customFieldList.setCustomField(custFieldRef);
+	    customer.setCustomFieldList(customFieldList);
+	    
+	    return customer;
+	}
+
+	/** The method creates the request for the items to be updated and updates
+	 * the status of each in the entity bean.
+	 * @throws DatatypeConfigurationException 
+	 * @throws IOException 
+	 * @throws JsonMappingException 
+	 * @throws JsonGenerationException 
+	 * @throws Exception
+	 */
+	public List<CnvInvoiceInfoEnriched> createStoreInvFeed(List<CnvInvoiceInfoEnriched> cnvCustInfoEnriched) throws JsonGenerationException, JsonMappingException, IOException, DatatypeConfigurationException {
+
+
+		Customer[] enrichCustomerList = new Customer[cnvCustInfoEnriched.size()];
+		int i = cnvCustInfoEnriched.size() - 1;
+		for (CnvInvoiceInfoEnriched temp : cnvCustInfoEnriched) {
+			enrichCustomerList[i] = getCustomRecord(temp);
+			i--;
+		}
+
+		WriteResponseList writeRes = null;
+
+		if (logger.isDebugEnabled()) {
+			logger.debug("ArrayList " + enrichCustomerList.length);
+		}
+			writeRes = _port.addList(enrichCustomerList);
+
+
+			int count = 0;
+			GenericCoreException exception = null;
+			List<Throwable> exceptions = new ArrayList<Throwable>();
+			for (CnvInvoiceInfoEnriched temp : cnvCustInfoEnriched) {
+				
+				if (writeRes.getWriteResponse(count).getStatus().isIsSuccess()) {
+					temp.setUpdatedInNetsuite("1");
+				} else {
+					temp.setUpdatedInNetsuite("0");
+					exception = ExceptionHandler.createException("sho.common.error.technical.sql.update.send_to_netsuite_failed", BatchConstants.POS_CNV_CUSTINFO_ENTITY,
+							temp.getShcCustomerIndentifier(), temp.getShoCustomerId());
+					exceptions.add(exception);
+				}
+			}
+
+		if(!exceptions.isEmpty())
+		{
+		 dimProcessExcecutionListner.sendToIEM(exceptions, jobParameters, new Date());
+		}
+		return cnvCustInfoEnriched;
+	}
+
+	@Override
+	public void beforeStep(StepExecution stepExecution) {
+		jobParameters = stepExecution.getJobParameters();
+		correlationId = jobParameters.getString(BatchConstants.CORRELATION_ID);
+		entityType = jobParameters.getString(BatchConstants.ENTITY_TYPE);
+		logger.info("******************** Starting : "+stepExecution.getStepName()+" Entity : "+entityType+ " Correlation Id : "+correlationId);
+	}
+
+	@Override
+	public ExitStatus afterStep(StepExecution stepExecution) {
+		logger.info("******************** Stopping : "+stepExecution.getStepName()+" Entity : "+entityType+ " Correlation Id : "+correlationId);
+		return null;
+	}
+	
+	public void setDimProcessExcecutionListner(DimProcessExcecutionListner dimProcessExcecutionListner) {
+		this.dimProcessExcecutionListner = dimProcessExcecutionListner;
+	}
+	/**
+	 * @param nsUtils
+	 */
+	public void setNsUtils(NetSuiteWebServiceUtils nsUtils) {
+		this.nsUtils = nsUtils;
+	}
+
+
+}

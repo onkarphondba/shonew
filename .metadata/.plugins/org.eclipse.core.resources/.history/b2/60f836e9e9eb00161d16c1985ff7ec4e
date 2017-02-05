@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+		
+	    <import resource="job_launcher.xml"/>
+	    
+	    <!-- Job :pos_invoiceinfo_process_job -->
+	    <batch:job id="pos_invoiceinfo_process_job" parent="baseJob">  
+	    
+	     <!-- Step 1: Update the Execution Context -->
+	    	<batch:step id="setExecutionContextStep" next="callInvoiceInfoStoredProcedureStep" parent="baseStep">
+	         	<batch:tasklet ref="setExecutionContext"/>
+	         	<batch:listeners>
+					<batch:listener ref="dimProcessStartListner" />
+			</batch:listeners>
+	    	</batch:step>
+	    	
+	    	<!-- Step 2: Call stored procedure -->
+		 <batch:step id="callInvoiceInfoStoredProcedureStep" parent="baseStep" next="updateCnvCustInfoToNSStep">
+			<batch:tasklet ref="storedProcedureCallTaskletbean" />
+			<batch:listeners>
+				<batch:listener ref="dimProcessStartListner" />
+			</batch:listeners>
+     	</batch:step>
+	    	
+	    	
+	    <!-- Step 4: Update record in nesuite -->
+		<!-- <batch:step id="updateCnvCustInfoToNSStep" parent="baseStep" next="createCnvInvoiceInfoToNSStep">
+			<batch:partition step="updateCnvCustInfoToNSSlaveStep" partitioner="custCnvNetSuiteEnrichedPartitioner">
+				<batch:handler grid-size="${cnvcustinfo.grid.size}"
+					task-executor="baseTaskExecutor" />
+			</batch:partition>
+			<batch:listeners>
+				<batch:listener ref="dimProcessStartListner" />
+				<batch:listener ref="dimItemRecordCountListener" />
+			</batch:listeners>
+		</batch:step> -->
+		
+		<!-- Step : Add record in nesuite -->
+		<batch:step id="createCnvInvoiceInfoToNSStep" parent="baseStep" next="updateInterfaceCompletedStatusStep">
+			<batch:partition step="createCnvInvoiceInfoToNSSlaveStep" partitioner="invoiceCnvNetSuiteEnrichedCreatePartitioner">
+				<batch:handler grid-size="${poscnvinvoiceinfo.grid.size}"
+					task-executor="baseTaskExecutor" />
+			</batch:partition>
+			<batch:listeners>
+				<batch:listener ref="dimProcessStartListner" />
+				<batch:listener ref="dimItemRecordCountListener" />
+			</batch:listeners>
+		</batch:step>
+		    
+		    <!-- updated the completed status in IEM -->
+		<batch:step id="updateInterfaceCompletedStatusStep" parent="baseStep">
+			<batch:tasklet ref="updateStatusTaskletBeanId" />
+			<batch:listeners>
+				<batch:listener ref="dimProcessCompleteListner" />
+			</batch:listeners>
+		</batch:step>	    	
+	  </batch:job>
+	    
+	<!-- Step : Update record Partitioner -->
+	<bean id="custCnvNetSuiteEnrichedPartitioner" class="com.sho.renaissance.batch.partitioner.CnvCustInfoEnrichedPartitioner" 
+	scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+	</bean> 
+	 
+	 <!-- Step : create record Partitioner step --> 
+	<bean id="invoiceCnvNetSuiteEnrichedCreatePartitioner"
+		class="com.sho.renaissance.batch.partitioner.CnvCustInfoEnrichedCreatePartitioner" scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="correlationId" value="#{jobParameters['correlationId']}"/>
+	</bean> 
+	    
+	    
+	 <!-- Step : Update record slave step --> 
+	 <batch:step id="updateCnvCustInfoToNSSlaveStep">
+		<tasklet>
+			<chunk reader="cnvCustInfoUpdateDataStoreJDBCReader" writer="cnvCustInfoUpdateRecordWriterToNs"
+				commit-interval="#{stepExecutionContext[partitionSize]}" />
+
+			<batch:listeners>
+				<batch:listener ref="dimItemRecordCountListener" />
+			</batch:listeners>
+        </tasklet>
+	</batch:step>
+	
+	<!-- Step : create record slave step --> 
+   	 <batch:step id="createCnvInvoiceInfoToNSSlaveStep">
+		<tasklet>
+			<chunk reader="cnvInvoiceInfoCreateDataStoreJDBCReader" writer="cnvInvoiceInfoCreateRecordWriterToNs"
+				commit-interval="#{stepExecutionContext[partitionSize]}" />
+
+			<batch:listeners>
+				<batch:listener ref="dimItemRecordCountListener" />
+			</batch:listeners>
+        </tasklet>
+	</batch:step>
+
+	     <!-- Step : Update record reader step --> 
+	   <bean id="cnvCustInfoUpdateDataStoreJDBCReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="queryProvider">
+			<bean
+				class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="dataSource" ref="dataSource" />
+				<property name="selectClause" value="${cnvCustInfo.enriched.select.clause.upload.ns}" />
+				<property name="fromClause" value="${cnvCustInfo.enrichedUpdate.from.clause.upload.ns}" />
+				<property name="whereClause" value="${cnvCustInfo.enriched.where.clause.upload.ns}" />
+				<property name="sortKey" value="${cnvCustInfo.enriched.sortKey.clause.upload.ns}" />
+			</bean>
+		</property>
+		<property name="parameterValues">
+			<map>
+				<entry key="correlationId" value="#{jobParameters['correlationId']}" />
+				<entry key="startKey" value="#{stepExecutionContext[startKey]}" />
+				<entry key="endKey" value="#{stepExecutionContext[endKey]}" />
+			</map>
+		</property>
+		<property name="pageSize" value="${cnvcustinfo.process.sho.db.pageSize}" />
+		<property name="fetchSize" value="${cnvcustinfo.process.sho.db.fetchSize}" />
+		<property name="rowMapper">
+			<bean class="com.sho.renaissance.batch.reader.CnvCustInfoEnrichedMapper" />
+		</property>
+	</bean>
+	 	
+	 	<!-- Step : create record reader step --> 
+	    <bean id="cnvInvoiceInfoCreateDataStoreJDBCReader" class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="queryProvider">
+			<bean
+				class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+				<property name="dataSource" ref="dataSource" />
+				<property name="selectClause" value="${cnvinvoiceinfo.enriched.select.clause.upload.ns}" />
+				<property name="fromClause" value="${cnvinvoiceinfo.enrichedUpdate.from.clause.upload.ns}" />
+				<property name="whereClause" value="${cnvinvoiceinfo.enriched.where.clause.upload.ns}" />
+				<property name="sortKey" value="${cnvCustInfo.enriched.sortKey.clause.upload.ns}" />
+			</bean>
+		</property>
+		<property name="parameterValues">
+			<map>
+				<entry key="correlationId" value="#{jobParameters['correlationId']}" />
+				<entry key="startKey" value="#{stepExecutionContext[startKey]}" />
+				<entry key="endKey" value="#{stepExecutionContext[endKey]}" />
+			</map>
+		</property>
+		<property name="pageSize" value="${sho.db.pageSize}" />
+		<property name="fetchSize" value="${sho.db.fetchSize}" />
+		<property name="rowMapper">
+			<bean class="com.sho.renaissance.batch.reader.CnvCustInfoEnrichedMapper" />
+		</property>
+	</bean>
+	    <!-- writer to update record in netsuite -->
+	<bean id="cnvCustInfoUpdateRecordWriterToNs"
+		class="com.sho.renaissance.batch.writer.NetSuiteCnvCustInfoUpdateWriter"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="nsUtils" ref="netSuiteWebServiceUtils"/>
+		<property name="sql" value="${cnvCustInfo.enriched.update.clause}" />
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+				class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+		<property name="dimProcessExcecutionListner" ref="dimProcessStartListner"></property>
+	</bean>
+	
+	<bean id="cnvInvoiceInfoCreateRecordWriterToNs" class="com.sho.renaissance.batch.writer.NetSuiteCnvCustInfoCreateWriter"
+		scope="step">
+		<property name="dataSource" ref="dataSource" />
+		<property name="nsUtils" ref="netSuiteWebServiceUtils"/>
+		<property name="sql" value="${cnvCustInfo.enriched.update.clause}" />
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+				class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+		<property name="dimProcessExcecutionListner" ref="dimProcessStartListner"></property>
+	</bean>
+	    
+	    
+	    <!-- Step 1 update execution context -->
+	   <bean id="setExecutionContext" class="com.sho.renaissance.batch.tasklet.FlowExecutionTasklet" scope="step"/>
+	   
+	   <!-- Step 2: Call stored procedure -->
+	  <bean id="storedProcedureCallTaskletbean" class="com.sho.renaissance.batch.tasklet.CnvInvoiceInfoStoredProcedureTasklet" 
+	  	scope="step">
+			<property name="batchItemService" ref="batchItemServiceImpl" />
+	  </bean>
+	   
+	   
+	<bean id="updateStatusTaskletBeanId" class="com.sho.renaissance.batch.tasklet.UpdateEntityStatusTasklet" scope="step">
+       <property name="batchItemService" ref="batchItemServiceImpl" />
+       <property name="tableName" value="${batchItem.table}"/>
+    </bean>
+	
+	<bean id="baseTaskExecutor" class="org.springframework.core.task.SimpleAsyncTaskExecutor" scope="step"/>	 	
+</beans>

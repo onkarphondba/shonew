@@ -1,0 +1,329 @@
+package com.capgemini.cif.core.service.impl;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.springframework.jdbc.core.ResultSetExtractor;
+
+import com.capgemini.cif.core.dao.IBatchItemDao;
+import com.capgemini.cif.core.domain.BatchItem;
+import com.capgemini.cif.core.domain.CommonEntityAttribute;
+import com.capgemini.cif.core.domain.ProcessStatus;
+import com.capgemini.cif.core.service.IBatchItemService;
+import com.capgemini.cif.core.validation.ConcreteComponentProduct;
+
+public class BatchItemServiceImpl implements IBatchItemService {
+
+	private IBatchItemDao batchItemDao;
+
+	private static Log logger = LogFactory.getLog(BatchItemServiceImpl.class);
+
+	public IBatchItemDao getBatchItemDao() {
+		return batchItemDao;
+	}
+
+	public void setBatchItemDao(IBatchItemDao batchItemDao) {
+		this.batchItemDao = batchItemDao;
+	}
+
+	@Override
+	public Boolean isThresholdBreached(Integer threshold, String correlationId, String entityType) {
+
+		Integer totalBatchItem = batchItemDao.getBatchItemCount(correlationId, entityType, null);
+		Integer failedBatchItem = batchItemDao.getBatchItemCount(correlationId, entityType, Boolean.FALSE);
+
+		double thresholdBreach = (totalBatchItem * threshold) * 0.01;
+
+			logger.debug("################## Threshold Stats ##########################");
+			logger.debug("--- Threshold Value :" + threshold + "\n--- Total Batch Item :" + totalBatchItem
+					+ "\n--- Total Failed Item :" + failedBatchItem + "\n--- Threshold :" + thresholdBreach);
+			logger.debug("#############################################################");
+			
+		if (totalBatchItem > 0 && failedBatchItem >= thresholdBreach) {
+			// Threshold has been reached
+			return true;
+		}
+	
+		return false;
+	}
+
+	@Override
+	public void createProcessStatus(String processname, String status) {
+		if(null != processname){
+			batchItemDao.createProcessStatus(processname, status);
+		}
+	}
+
+	@Override
+	public boolean isAllPredecessorsComplete(String[] predecessors) {
+		if(null == predecessors  || predecessors.length == 0){
+			return true;
+		}
+		
+		List<String> predecessorList = Arrays.asList(predecessors);
+		List<ProcessStatus> processStatusList = batchItemDao.getProcessStatus(predecessorList);
+
+		Set<String> processNames = new HashSet<String>();
+		for (ProcessStatus processStatus : processStatusList) {
+			processNames.add(processStatus.getName());
+		}
+		
+			if(processNames.containsAll(predecessorList)){
+				return true;
+			}else{
+				return false;
+				
+			}
+	}
+
+	@Override
+	public List<Map<String, Object>> getClusterFeedFailedRecords(){
+		return batchItemDao.getClusterFeedFailedRecords();
+	}
+
+	@Override
+	public Integer getClusterFeedAllRecords(){
+		return batchItemDao.getClusterFeedAllRecords();
+	}
+	
+	@Override
+	public List<ConcreteComponentProduct> getTotalRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName) {
+		return batchItemDao.getTotalRecordsFromEnrichedTable(resultSetExtractor, tableName);
+	}
+
+	@Override
+	public List<ConcreteComponentProduct> getFailedRecordsFromEnrichedTable(ResultSetExtractor<List<ConcreteComponentProduct>> resultSetExtractor, String tableName) {
+		return batchItemDao.getFailedRecordsFromEnrichedTable(resultSetExtractor, tableName);
+	}
+
+	@Override
+	public Map<String, Object> callClusterFeedStoredProcedure() throws SQLException {
+		return batchItemDao.callClusterFeedStoredProcedure();
+	}
+
+	@Override
+	public Map<String, Object> callPricefeedStoredProcedure() throws SQLException {
+		return batchItemDao.callPricefeedStoredProcedure();
+	}
+	@Override
+	public Map<String, Object> callCNVReceiptsStoredProcedure() throws SQLException {
+		return batchItemDao.callCNVReceiptsStoredProcedure();
+	}	
+	@Override
+	public Map<String, Object> callCnvHistoricalMetricsStoredProcedure() throws SQLException {
+		return batchItemDao.callCnvHistoricalMetricsStoredProcedure();
+	}
+	@Override
+	public Map<String, Object> callCnvHistoricalInventoryStoredProcedure() throws SQLException {
+		return batchItemDao.callCnvHistoricalInventoryStoredProcedure();
+	}
+	@Override
+	public Map<String, Object> callItemDescriptiveAttributesStoredProcedure() throws SQLException {
+		return batchItemDao.callItemDescriptiveAttributesStoredProcedure();
+	}
+	
+	@Override
+	public Map<String, Object> callSpinAssetsStoredProcedure() throws SQLException {
+		return batchItemDao.callSpinAssetsStoredProcedure();
+	}
+	public Map<String, Object> callSpinImagesStoredProcedure() throws SQLException {
+		return batchItemDao.callSpinImagesStoredProcedure();
+	}
+
+    @Override
+	public Map<String, Object> callSpinItemStoredProcedure() throws SQLException {
+		return batchItemDao.callSpinItemStoredProcedure();
+	}
+	
+	@Override
+	public void truncateTable(String sql) throws SQLException {
+		batchItemDao.truncateTable(sql);
+	}
+	
+	@Override
+	public void deleteTableDataOlderThanNDays(String tableName, int numberOfDays) throws SQLException {
+		batchItemDao.deleteTableDataOlderThanNDays(tableName, numberOfDays);
+	}
+
+	@Override
+	public Map<String, Object> callSiteCategoriesStoredProcedure() throws SQLException {
+		return batchItemDao.callSiteCategoriesStoredProcedure();
+	}
+
+	@Override
+	public Long getNumberOfRecordsProcessed(String tableName) {
+		return batchItemDao.getNumberOfRecordsProcessed(tableName);
+	}
+
+	@Override
+	public String getNetsuiteBatchStatus(String statusName) {
+		return batchItemDao.getNetsuiteBatchStatus(statusName);
+	}
+	@Override
+	public ResultSet getEnrichedOnhandQuantityFailedRecords() throws SQLException {
+		return batchItemDao.getStoreInvEnrichedOnhandQuantityFailedRecords();
+	}
+	
+	@Override
+	public ResultSet getNsNonExistantRecords() throws SQLException
+	{
+		return batchItemDao.getNsNonExistantRecors();
+	}
+
+	@Override
+	public Map<String, Object> callStoreInvFeedStoredProcedure() throws SQLException {
+		return batchItemDao.callStoredInvFeedProcedure();
+	}
+
+	@Override
+	public ResultSet getEnrichedOnhandQuantityTotalRecords() throws SQLException{
+		return batchItemDao.getStoreInvEnrichedOnhandQuantityTotalRecords();
+	}
+
+	@Override
+	public String getNetsuiteFileType(String fileTypeName) {
+		return batchItemDao.getNetsuiteFileType(fileTypeName);
+	}
+	
+	/*@Override
+	public Map<String, Object> callRelatedItemsStoredProcedure() throws SQLException {
+		return batchItemDao.callRelatedItemsStoredProcedure();
+	}*/
+
+	@Override
+	public void deleteTable(String conditionalDeleteTable) throws SQLException{
+		batchItemDao.deleteTable(conditionalDeleteTable);
+		
+	}
+    @Override
+	public List<BatchItem> getBatchItems(String correlationId,String entityType,Boolean isValid){
+		 return batchItemDao.getBatchItems(correlationId, entityType, isValid);
+	}
+    
+    @Override
+	public List<CommonEntityAttribute> getAllAttributesByType(String attributeType)
+	{
+			logger.debug("Entering method getCommonEntityItemAttributes");
+		
+		return  batchItemDao.getAllAttributesByType(attributeType);
+	}
+	
+    @Override
+   	public Map<String, Object> callPartsAccessoriesStoredProcedure() throws SQLException {
+   		return batchItemDao.callPartsAccessoriesStoredProcedure();
+   	}
+    
+    @Override
+	public Map<String, Object> callProtectionAgreementsStoredProcedure() throws SQLException {
+		return batchItemDao.callProtectionAgreementsStoredProcedure();
+	}
+    
+    @Override
+	public List<Map<String, Object>> getPoAndTransfersListValues(){
+		return batchItemDao.getPoAndTransfersListValues();
+	}
+    
+  
+	@Override
+	public Date getTimeOfRun(String entityName, boolean lastSuccessful) {
+		return batchItemDao.getRunTimeForEntity(entityName, lastSuccessful);
+	}
+
+	@Override
+	public void insertProcessTime(String entityName, Date date) {
+		batchItemDao.insertProcessTime(entityName, date);
+		
+	}
+
+	@Override
+	public void updateLastSuccessfulRun(String entityType) {
+		batchItemDao.deleteOlderRecords(entityType);
+		batchItemDao.updateCurrentStatus(entityType);
+	}
+	
+	@Override
+	public Map<String, Object> callCnvSalesHistoryStoredProcedure() throws SQLException {
+		return batchItemDao.callCnvSalesHistoryStoredProcedure();
+	}
+	@Override
+	public Map<String, Object> callCnvInventoryOnHandStoredProcedure() throws SQLException {
+		return batchItemDao.callCnvInventoryOnHandStoredProcedure();
+	}
+
+	@Override
+	public Map<String, Object> getLatestInCompleteProcessId(){
+		return batchItemDao.getLatestInCompleteProcessId();
+	}
+
+	@Override
+	public void createCnvLocProcessStatus(String name, String status, String entity) {
+		batchItemDao.createCnvLocProcessStatus(name,status,entity);
+	}
+
+	@Override
+	public void createCnvRimProcessStatus(String name, String status, String entity) {
+		batchItemDao.createCnvRimProcessStatus(name, status, entity);
+	}
+	
+	@Override
+	public void updateCnvProcessStatus(Long processId ,String name, String status, String entity){
+		batchItemDao.updateCnvProcessStatus(processId, name, status, entity);	
+		}
+
+	@Override
+	public Long getNumberOfFailedRecords(String tableName) {
+		return batchItemDao.getNumberOfUnProcessedRecords(tableName);
+		
+	}
+
+	@Override
+	public Integer getTotalBatchCount(String correlationId, String entityType)
+	{
+		return batchItemDao.getBatchItemCount(correlationId, entityType, null);
+	}
+	
+	@Override
+	public Integer getTotalFailedBatchCount(String correlationId, String entityType)
+	{
+		return batchItemDao.getBatchItemCount(correlationId, entityType, Boolean.FALSE); 
+	}
+	
+	@Override
+	public Long getCNVNumberOfFailedRecords(String tableName) {
+		return batchItemDao.getCNVNumberOfUnProcessedRecords(tableName);
+	}
+	
+	@Override
+	public Long getCNVNumberOfRecordsProcessed(String tableName) {
+		return batchItemDao.getCNVNumberOfRecordsProcessed(tableName);
+	}
+	
+	@Override
+	public Map<String, Object> callCnvCustInfoProcedure() throws SQLException {
+		return batchItemDao.callcnvCustInfoProcedure();
+	}
+
+	@Override
+	public Integer getCnvCustInfoInvalidRecordCount(String correlationId) throws SQLException{
+		return batchItemDao.getCnvCustInfoFailedRecords(correlationId);
+	}
+
+	@Override
+	public Integer getCnvCustInfoTotalRecordCount(String correlationId) throws SQLException
+	{
+		return batchItemDao.getCnvCustInfoTotalRecordCount(correlationId);
+	}
+	
+	@Override
+	public Map<String, Object> callCnvInvoiceInfoProcedure() throws SQLException {
+		return batchItemDao.callcnvCustInfoProcedure();
+	}
+}

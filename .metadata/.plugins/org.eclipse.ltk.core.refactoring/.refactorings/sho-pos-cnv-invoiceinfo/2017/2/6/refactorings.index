@@ -1,0 +1,6 @@
+1486328160074	Rename type 'CnvCustInfoStoredProcedureTasklet'
+1486329049919	Rename resource 'pos_cnvcustinfo_process_job.xml'
+1486330222605	Rename type 'CnvCustInfoEnriched'
+1486331604846	Encapsulate field 'id'
+1486331690381	Rename type 'CnvCustInfoEnrichedMapper'
+1486334019832	Rename type 'NetSuiteCnvCustInfoCreateWriter'
